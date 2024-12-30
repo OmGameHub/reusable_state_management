@@ -1,0 +1,6 @@
+@tailwind base;
+@tailwind utilities;
+
+.page_card .ant-card-body {
+    padding: 1rem 1.5rem;
+}

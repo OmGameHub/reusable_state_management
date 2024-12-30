@@ -1,168 +1,99 @@
 # Reusable State Management in React
 
-This guide provides a comprehensive approach to implementing reusable state management in React applications using the Context API and a custom `BaseListContext` class. By following this pattern, developers can create scalable and reusable state management solutions for managing lists of data items to perform CRUD operations.
+This guide introduces a scalable and reusable approach to managing state in React applications. By using the **Context API**, a custom `BaseListContext` class and `buildReactQueryHooks`, you can efficiently manage data lists, streamline CRUD operations, and ensure a consistent state management strategy across your app.
 
-## The BaseListContext Class
+---
 
-The `BaseListContext` class is a utility for managing state, actions, and API interactions for a list of items. It abstracts common functionalities and allows you to quickly create contexts for different types of data.
+## **Features**
 
-## Steps to Create Your Own Context
+1. **Reusability**: Quickly create state management contexts and hooks for different data types without duplicating code.
+2. **Scalability**: Handle complex state management for various entities across large applications.
+3. **Consistency**: Standardize CRUD operations and state management across multiple modules.
+4. **Integration**: Easily plug this pattern into existing React applications.
+5. **Performance**: Utilize React Query for caching, data fetching, and efficient UI updates.
 
-Follow these steps to create a custom context for managing a different type of list:
+---
 
-### Step 1: Define the Data Type
+## **Understanding `BaseListContext`**
 
-Define the TypeScript interface for your data items. For example, to manage a list of dogs, you can create a `DogType` type:
+`BaseListContext` is a reusable utility designed to simplify state management in React apps. It provides:
+- Shared state management for lists of data.
+- Common CRUD operations (Create, Read, Update, Delete).
+- Modular and reusable structure that reduces repetitive code.  
+
+### **Key Features**
+- **Reusability**: Share a common state management pattern for any data type (e.g., dogs, tasks, users).
+- **Centralized Logic**: Manage loading states, errors, and metadata (e.g., pagination).
+- **Customizable**: Easily adapt to different endpoints and entity types.
+
+---
+
+### **Step-by-Step Guide: Using `BaseListContext`**
+
+#### **1. Define Your Data Type**
+
+Define the structure of the data entity you'll manage. For example:
 
 ```typescript
-// DogType.ts
+// types/DogType.ts
 type DogType = {
   id: number;
   name: string;
-  bred_for?: string;
   breed_group?: string;
-  height: {
-    imperial: string;
-    metric: string;
-  };
   image: {
-    height: number;
-    id: string;
     url: string;
-    width: number;
   };
   life_span?: string;
-  reference_image_id: string;
-  origin?: string;
-  temperament: string;
-  weight: {
-    imperial: string;
-    metric: string;
-  };
+  temperament?: string;
 };
 
-export default DogType
+export default DogType;
 ```
 
-### Step 2: Create the Context
+#### **2. Create a Context for Your Data Type**
 
-Use the `BaseListContext` class to create a context for your data type:
+Use `BaseListContext` to generate a custom context for your data type. Provide a name and the API endpoint:
 
 ```typescript
-// DogContext.ts
+// context/DogContext.ts
 import BaseListContext from "./BaseListContext";
 import DogType from "@/types/DogType";
 
 const { BaseListProvider: DogContextProvider, useBaseListContext } =
   new BaseListContext<DogType>({
-    name: "Dog",
-    endpoint: "/public/dogs",
+    name: "Dog", // Unique name for the context
+    endpoint: "/public/dogs", // API endpoint for fetching dogs
   }).buildContext();
 
-const useDogContext = useBaseListContext;
-
-export { DogContextProvider, useDogContext };
+export { DogContextProvider, useBaseListContext as useDogContext };
 ```
 
-### Step 3: Use the Context in Components
+#### **3. Use the Context in Components**
 
-Integrate the context into your React components to manage the state and actions of your data:
+Access the state and CRUD actions through the custom context's hooks:
 
 ```typescript
 // pages/Dogs.tsx
-import { useEffect, useMemo, useState } from "react";
-import { Avatar, Table, TableColumnsType, TablePaginationConfig } from "antd";
-import { EyeOutlined } from "@ant-design/icons";
-
-import DogDetailsDrawer from "@/components/DogDetailsDrawer";
-
 import { useDogContext } from "@/context/DogContext";
-import { getBoardKey } from "@/context/BaseListContext";
-
-import { IdType, QueryParamsType } from "@/types";
 
 const Dogs = () => {
-  const [params, setParams] = useState<QueryParamsType>({ page: 1, limit: 10 });
-
   const {
     state: { map, boards },
     actions: { getAll },
   } = useDogContext();
 
-  const { listMap, loading, metaData } = useMemo(() => {
-    const boardKey = getBoardKey(params);
-    const mBoard = boards[boardKey];
-
-    if (!mBoard) {
-      return {
-        listMap: {},
-        loading: true,
-        metaData: {},
-      };
-    }
-
-    return mBoard;
-  }, [boards, params]);
-  const list = listMap?.[params.page!] || [];
-
-  const [selectedId, setSelectedId] = useState<IdType | null>(null);
-
-  const columns: TableColumnsType<any> = useMemo(
-    () => [
-      {
-        title: "Image",
-        dataIndex: "image",
-        render: (image) => <Avatar src={image?.url} />,
-      },
-      { title: "Name", dataIndex: "name" },
-      {
-        title: "Breed Group",
-        dataIndex: "breed_group",
-        render: (text) => text || "-",
-      },
-      { title: "Life Span", dataIndex: "life_span" },
-      {
-        title: "Actions",
-        dataIndex: "actions",
-        render(_, record) {
-          return <EyeOutlined onClick={() => setSelectedId(record?.id)} />;
-        },
-      },
-    ],
-    [setSelectedId]
-  );
-
   useEffect(() => {
-    const params = { page: 1, limit: 10 };
-    setParams(params);
-    getAll(params);
+    getAll({ page: 1, limit: 10 }); // Fetch dogs
   }, []);
-
-  const onChange = ({ current, pageSize }: TablePaginationConfig) => {
-    const newParams = { ...params, page: current, limit: pageSize };
-    setParams(newParams);
-    getAll(newParams);
-  };
 
   return (
     <div>
-      <Table
-        columns={columns}
-        dataSource={list.map((id: IdType) => ({ ...map[id], key: id }))}
-        onChange={onChange}
-        pagination={{
-          total: metaData?.totalItems ?? 0,
-          pageSize: params.limit,
-          pageSizeOptions: [5, 10, 15],
-        }}
-        loading={loading}
-      />
-
-      <DogDetailsDrawer
-        selectedDogId={selectedId}
-        onClose={() => setSelectedId(null)}
-        open={selectedId !== null}
-      />
+      {Object.values(map).map((dog) => (
+        <div key={dog.id}>
+          <img src={dog.image.url} alt={dog.name} />
+          <h3>{dog.name}</h3>
+        </div>
+      ))}
     </div>
   );
 };
@@ -170,60 +101,166 @@ const Dogs = () => {
 export default Dogs;
 ```
 
-### Step 4: Implement the Context Provider
+#### **4. Wrap Your App with the Context Provider**
 
-Wrap your application with the context provider to make the context available to all components:
+Ensure the `DogContextProvider` wraps your application to make the context accessible:
 
 ```typescript
 // App.tsx
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { DogContextProvider } from "@/context/DogContext";
 
-import { DogContextProvider } from "@/context/TodoListContext";
-import Dogs from "@/pages/Dogs";
-
-/**
- * Main application component.
- *
- * @returns {JSX.Element} The rendered App component.
- */
-const App = () => {
-  return (
-    <DogContextProvider>
-      <Dogs />
-      <ToastContainer />
-    </DogContextProvider>
-  );
-};
+const App = () => (
+  <DogContextProvider>
+    <Dogs />
+  </DogContextProvider>
+);
 
 export default App;
 ```
 
-## Benefits of This Approach
+---
 
-1. **Reusability**: By using the `BaseListContext`, you can quickly create new contexts without duplicating code.
-2. **Scalability**: Easily manage complex state and actions for multiple data types.
-3. **Consistency**: Ensure uniformity across your application’s state management logic.
+## **Understanding `buildReactQueryHooks`**
 
-## Example Screenshots
+`buildReactQueryHooks` is a utility that simplifies data fetching using **React Query**. Instead of creating hooks for each data type manually, it generates reusable hooks for fetching, caching, and managing data with ease.
 
-- **Cats Page**:
-  ![Cats Page](./screenshots/cats_page.png)
+### **Key Features**
+- **Reusability**: Create hooks for any data type with minimal setup.
+- **Built-in Caching**: Automatically leverage React Query's caching.
+- **Customization**: Easily specify endpoints, query keys, and API configurations.
 
-- **Dogs Page**:
-  ![Dogs Page](./screenshots/dogs_page.png)
+---
 
-- **Todo List Page**:
-  ![Todo List Page](./screenshots/todo_list_page.png)
+### **Step-by-Step Guide: Using `buildReactQueryHooks`**
 
-## Conclusion
+#### **1. Install React Query**
 
-By adopting this pattern, developers can streamline state management in their React applications, saving time and reducing boilerplate code.
+Ensure React Query is installed in your project:
 
-For more information, check out the [BaseListContext class](./contextApi/BaseListContext.tsx) and the [example implementation](./example/reusable_state_using_context_api/).
+```bash
+npm install react-query
+```
 
-## Credits
+#### **2. Set Up a Query Client**
 
-Special thanks to [Free API](https://freeapi.app/) for providing the APIs used in this project. Their resources made it possible to demonstrate this example effectively. You can find more information about their APIs on their [website](https://freeapi.app/) or [GitHub repository](https://github.com/hiteshchoudhary/apihub)
+Configure a `QueryClient` for managing query caching:
 
+```typescript
+// config/queryClient.ts
+import { QueryClient } from "react-query";
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+export default queryClient;
+```
+
+#### **3. Generate Hooks for Your Data Type**
+
+Create React Query hooks using `buildReactQueryHooks`:
+
+```typescript
+// hooks/dogHooks.ts
+import buildReactQueryHooks from "./buildReactQueryHooks";
+import DogType from "@/types/DogType";
+
+const {
+  useGetAll: useGetAllDogs,
+  useGetOne: useGetDog,
+} = buildReactQueryHooks<DogType>({
+  queryName: "Dog", // Query key for caching
+  apiEndpoint: "/public/dogs", // API endpoint for fetching dogs
+  keyId: "id", // Primary key of the entity
+});
+
+export { useGetAllDogs, useGetDog };
+```
+
+#### **4. Use the Hooks in Components**
+
+Use the generated hooks to fetch and manage data:
+
+```typescript
+// pages/Dogs.tsx
+import { useGetAllDogs } from "@/hooks/dogHooks";
+
+const Dogs = () => {
+  const { data: resData, isFetching } = useGetAllDogs({ page: 1, limit: 10 });
+  const dogs = resData?.data ?? [];
+
+  return (
+    <div>
+      {isFetching && <p>Loading...</p>}
+      {dogs.map((dog) => (
+        <div key={dog.id}>
+          <img src={dog.image.url} alt={dog.name} />
+          <h3>{dog.name}</h3>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default Dogs;
+```
+
+#### **5. Wrap Your App with the Query Client Provider**
+
+Enable React Query by wrapping your app with the `QueryClientProvider`:
+
+```typescript
+// App.tsx
+import { QueryClientProvider } from "react-query";
+import queryClient from "@/config/queryClient";
+import Dogs from "@/pages/Dogs";
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <Dogs />
+  </QueryClientProvider>
+);
+
+export default App;
+```
+
+---
+
+## **Comparison: `BaseListContext` vs. `buildReactQueryHooks`**
+
+| **Feature**           | **BaseListContext**                            | **buildReactQueryHooks**                     |
+|-----------------------|-----------------------------------------------|---------------------------------------------|
+| **Purpose**           | Centralized state management for CRUD actions. | Simplified data fetching and caching.       |
+| **Abstraction**       | Provides a global state with actions like create, update, delete. | Focuses on fetching and caching data.       |
+| **Reusability**       | Create reusable contexts for different data types. | Create reusable data-fetching hooks.        |
+| **When to Use**       | For state-heavy apps needing shared CRUD logic. | For API-heavy apps needing optimized fetching and caching. |
+
+---
+
+## **Screenshots**
+
+### Dogs Page  
+![Dogs Page](./screenshots/dogs_page.png)
+
+### Cats Page  
+![Cats Page](./screenshots/cats_page.png)
+
+---
+
+## **Credits**
+
+This project uses APIs from [Free API](https://freeapi.app/). For more details, visit their [GitHub repository](https://github.com/hiteshchoudhary/apihub).
+
+---
+
+## **Conclusion**
+
+By combining `BaseListContext` and `buildReactQueryHooks`, this reusable state management solution offers a highly efficient, scalable, and maintainable approach to managing data in React applications.  
+
+Whether you're building a simple CRUD app or a complex enterprise application, this pattern ensures consistency, performance, and ease of integration.  
+
+Happy coding! 🚀
